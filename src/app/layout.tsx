@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Big_Shoulders, Schibsted_Grotesk } from "next/font/google";
 import { site } from "@/config/site";
 import { localBusinessSchema } from "@/lib/schema";
+import { getHours } from "@/lib/hours";
 import SmoothScroll from "@/components/SmoothScroll";
 import RevealObserver from "@/components/RevealObserver";
 import "./globals.css";
@@ -46,7 +47,8 @@ export const viewport: Viewport = {
   colorScheme: "dark",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const hours = await getHours();
   return (
     <html lang="en-GB" className={`${display.variable} ${body.variable} antialiased`}>
       <body className="grain min-h-dvh">
@@ -61,7 +63,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         {children}
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(localBusinessSchema()).replace(/</g, "\\u003c") }}
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(localBusinessSchema(hours)).replace(/</g, "\\u003c") }}
         />
       </body>
     </html>

@@ -3,7 +3,9 @@ import { z } from "zod";
 import { getService } from "@/config/services";
 import { freeSlots } from "@/lib/availability";
 import { busyRanges } from "@/lib/bookings";
+import { getHours } from "@/lib/hours";
 import { sendBookingEmails } from "@/lib/email";
+import { notifyNewBooking } from "@/lib/push";
 import { getSupabase } from "@/lib/supabase";
 import { localDateKey } from "@/lib/time";
 
@@ -33,12 +35,13 @@ export async function POST(req: Request) {
 
   // Re-check the slot against opening hours and current bookings.
   const date = localDateKey(new Date(b.startsAt));
-  const busy = await busyRanges(date);
+  const hours = await getHours();
+  const busy = await busyRanges(date, hours);
   if ("error" in busy) {
     return NextResponse.json({ error: "Online booking is unavailable right now. Message us on WhatsApp." }, { status: 503 });
   }
   const startsAt = new Date(b.startsAt).toISOString();
-  if (!freeSlots(date, service.durationMinutes, busy).some((s) => s.startsAt === startsAt)) {
+  if (!freeSlots(date, service.durationMinutes, busy, new Date(), hours).some((s) => s.startsAt === startsAt)) {
     return NextResponse.json({ error: "slot_taken" }, { status: 409 });
   }
 
@@ -61,7 +64,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Couldn't save your booking. Try again, or message us on WhatsApp." }, { status: 500 });
   }
 
-  // Send emails after responding, so the customer isn't kept waiting.
+  // Notify Shlomo and send emails after responding, so the customer isn't kept waiting.
+  after(() => notifyNewBooking({ name: b.name, serviceName: service.name, startsAt }));
   after(() =>
     sendBookingEmails({
       id: id as string,

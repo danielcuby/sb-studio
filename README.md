@@ -8,7 +8,8 @@ The original brief is in [PROJECT_BRIEF.md](PROJECT_BRIEF.md).
 
 | What | File |
 | --- | --- |
-| Address, phone, WhatsApp, opening hours, booking rules, Shlomo's bio | `src/config/site.ts` |
+| Opening hours | Shlomo sets them himself in the admin app (Your weekly hours) |
+| Address, phone, WhatsApp, booking rules, Shlomo's bio, default hours | `src/config/site.ts` |
 | Services, prices, durations | `src/config/services.ts` |
 | Reviews | `src/config/reviews.ts` |
 | Photos (paths and alt text) | `src/config/images.ts` (files in `public/images/`, credits in `public/images/CREDITS.md`) |
@@ -44,9 +45,14 @@ npm run build
 - **One chair:** the database refuses two overlapping bookings (an exclusion constraint), so two people can't grab the same slot even at the same second.
 - The public can't read bookings. The site only calls two database functions: "which times are busy" (times only, no names) and "create a booking".
 
-### Admin dashboard: `/admin`
+### Shlomo's admin app: https://sb-studio-mu.vercel.app/admin
 
-See bookings by day or the next 60 days, mark done / no-show, cancel (frees the slot), add bookings taken by phone, and block off time (holidays, breaks).
+Works without a custom domain. It installs as its own app ("SB Bookings") on his phone: open the link, then **iPhone:** Share → Add to Home Screen, **Android (Chrome):** menu → Install app. He stays signed in.
+
+- **Notifications:** tap "Turn on notifications" in the app. Every new booking pings that device; tapping it opens that day. (iPhone needs iOS 16.4+ and the app opened from the home screen.)
+- **Your weekly hours:** tick the days he works and set the times. Customers can only book inside them, and the website's opening hours update straight away.
+- **Block off time:** one-off days off, holidays, breaks.
+- **Bookings:** by day or the next 60 days; mark done / no-show, cancel (frees the slot), add bookings taken by phone.
 
 Create an admin login (run on your computer, needs `SUPABASE_SECRET_KEY` in `.env.local`):
 

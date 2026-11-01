@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { services, getService, formatPrice, type Service } from "@/config/services";
-import { site } from "@/config/site";
+import { site, type WeeklyHours } from "@/config/site";
 import { bookableDates, type Slot } from "@/lib/availability";
 import { formatDateLong } from "@/lib/time";
 import Calendar from "./Calendar";
@@ -23,7 +23,7 @@ const ease = [0.16, 1, 0.3, 1] as const;
 
 type SlotState = { status: "idle" | "loading" | "ready" | "error" | "not_configured"; slots: Slot[]; message?: string };
 
-export default function BookingFlow() {
+export default function BookingFlow({ hours }: { hours: WeeklyHours }) {
   const params = useSearchParams();
   const preselected = getService(params.get("service"));
   const reduce = useReducedMotion();
@@ -40,7 +40,7 @@ export default function BookingFlow() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [bookingId, setBookingId] = useState<string | null>(null);
-  const dates = useMemo(() => bookableDates(), []);
+  const dates = useMemo(() => bookableDates(new Date(), hours), [hours]);
 
   const go = (s: Step) => {
     setStep(s);
@@ -181,7 +181,7 @@ export default function BookingFlow() {
                 <h1 id="date-title" className="font-display text-5xl font-extrabold uppercase md:text-6xl">
                   Pick a day
                 </h1>
-                <p className="mt-3 text-stone">Open {describeOpenDays()}. Crossed-out days are closed.</p>
+                <p className="mt-3 text-stone">{describeOpenDays(hours)}</p>
                 <div className="mt-8 max-w-md">
                   <Calendar
                     enabled={dates}
@@ -325,12 +325,15 @@ function PayNote({ className }: { className?: string }) {
   );
 }
 
-function describeOpenDays() {
-  const open = Object.entries(site.hours).filter(([, h]) => h);
-  const closed = Object.entries(site.hours).filter(([, h]) => !h).map(([d]) => Number(d));
-  const h = open[0]?.[1];
+function describeOpenDays(hours: WeeklyHours) {
+  const open = Object.values(hours).filter((h) => h !== null);
+  const closed = Object.entries(hours).filter(([, h]) => !h).map(([d]) => Number(d));
   const names = ["Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays"];
-  return `${h?.open}–${h?.close}${closed.length ? `, closed ${closed.map((d) => names[d]).join(" and ")}` : ""}`;
+  const closedText = closed.length ? `closed ${closed.map((d) => names[d]).join(" and ")}` : "";
+  const sameHours = open.length > 0 && open.every((h) => h.open === open[0].open && h.close === open[0].close);
+  const parts = [sameHours ? `Open ${open[0].open}–${open[0].close}` : "", closedText].filter(Boolean);
+  const sentence = parts.join(", ");
+  return `${sentence.charAt(0).toUpperCase()}${sentence.slice(1)}${sentence ? "." : ""} Crossed-out days are closed.`;
 }
 
 function TimeSlots({

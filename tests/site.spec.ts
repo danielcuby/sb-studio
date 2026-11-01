@@ -103,3 +103,16 @@ test("admin page asks for sign-in and is not indexed", async ({ page }) => {
   await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
   await expect(page.getByRole("heading", { name: /Admin sign in|Not set up/ })).toBeVisible();
 });
+
+test("admin is its own installable app", async ({ page, request }) => {
+  await page.goto("/admin");
+  await expect(page.locator('link[rel="manifest"]').last()).toHaveAttribute("href", "/admin.webmanifest");
+  const manifest = await (await request.get("/admin.webmanifest")).json();
+  expect(manifest.start_url).toBe("/admin");
+  expect((await request.get("/sw.js")).ok()).toBeTruthy();
+});
+
+test("hours refresh endpoint rejects people who aren't admins", async ({ request }) => {
+  expect((await request.post("/api/hours-updated")).status()).toBe(401);
+  expect((await request.post("/api/hours-updated", { headers: { Authorization: "Bearer nope" } })).status()).toBe(403);
+});

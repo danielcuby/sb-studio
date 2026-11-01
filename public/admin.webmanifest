@@ -1,0 +1,14 @@
+{
+  "name": "SB Studio Bookings",
+  "short_name": "SB Bookings",
+  "description": "Shlomo's bookings, hours and notifications.",
+  "start_url": "/admin",
+  "scope": "/admin",
+  "display": "standalone",
+  "background_color": "#141210",
+  "theme_color": "#141210",
+  "icons": [
+    { "src": "/icon.svg", "type": "image/svg+xml", "sizes": "any" },
+    { "src": "/apple-icon", "type": "image/png", "sizes": "180x180" }
+  ]
+}

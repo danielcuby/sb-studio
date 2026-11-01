@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import AdminApp from "@/components/admin/AdminApp";
 import { Logo } from "@/components/icons";
@@ -6,7 +6,12 @@ import { Logo } from "@/components/icons";
 export const metadata: Metadata = {
   title: "Admin",
   robots: { index: false, follow: false },
+  // Its own installable app ("SB Bookings") so Shlomo can add it to his home screen and get notifications.
+  manifest: "/admin.webmanifest",
+  appleWebApp: { capable: true, title: "SB Bookings", statusBarStyle: "black-translucent" },
 };
+
+export const viewport: Viewport = { themeColor: "#141210" };
 
 export default function AdminPage() {
   return (

@@ -1,11 +1,11 @@
-import { site, weekdayNames } from "@/config/site";
+import { site, weekdayNames, type WeeklyHours } from "@/config/site";
 import { services, currency } from "@/config/services";
 import { images } from "@/config/images";
 
 /** schema.org BarberShop (a LocalBusiness) for search engines. */
-export function localBusinessSchema() {
+export function localBusinessSchema(openingHours: WeeklyHours) {
   const prices = services.map((s) => s.price);
-  const hours = Object.entries(site.hours)
+  const hours = Object.entries(openingHours)
     .filter(([, h]) => h)
     .map(([day, h]) => ({
       "@type": "OpeningHoursSpecification",

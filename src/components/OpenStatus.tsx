@@ -2,17 +2,18 @@
 
 import { useEffect, useState } from "react";
 import { openStatus } from "@/lib/time";
+import type { WeeklyHours } from "@/config/site";
 
 /** "Open now until 19:00" with a live dot. Rendered on the client so it's always current. */
-export default function OpenStatus({ className }: { className?: string }) {
+export default function OpenStatus({ hours, className }: { hours: WeeklyHours; className?: string }) {
   const [status, setStatus] = useState<ReturnType<typeof openStatus> | null>(null);
 
   useEffect(() => {
-    const update = () => setStatus(openStatus());
+    const update = () => setStatus(openStatus(new Date(), hours));
     update();
     const id = setInterval(update, 60_000);
     return () => clearInterval(id);
-  }, []);
+  }, [hours]);
 
   return (
     <span className={`inline-flex min-h-6 items-center gap-2 text-sm text-bone/80 ${className ?? ""}`} aria-live="polite">

@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRef } from "react";
 import { images } from "@/config/images";
-import { site } from "@/config/site";
+import { site, type WeeklyHours } from "@/config/site";
 import { services, formatPrice } from "@/config/services";
 import { useScrollTweens } from "@/lib/parallax";
 import { WhatsAppIcon } from "./icons";
@@ -13,7 +13,7 @@ import OpenStatus from "./OpenStatus";
 const lines = ["One chair.", "One barber.", "Your time."];
 const from = Math.min(...services.map((s) => s.price));
 
-export default function Hero() {
+export default function Hero({ hours }: { hours: WeeklyHours }) {
   const root = useRef<HTMLElement>(null);
 
   // Parallax drift as you scroll away (the push-in on load is CSS, see globals.css).
@@ -65,7 +65,7 @@ export default function Hero() {
                 WhatsApp us
               </a>
             </div>
-            <OpenStatus />
+            <OpenStatus hours={hours} />
           </div>
         </div>
       </div>

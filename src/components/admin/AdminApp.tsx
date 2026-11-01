@@ -4,10 +4,12 @@ import { useCallback, useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { getSupabase, supabaseConfigured } from "@/lib/supabase";
 import { services, getService, formatPrice } from "@/config/services";
-import { site } from "@/config/site";
+import { site, type WeeklyHours } from "@/config/site";
 import { addDays, formatDateLong, formatTime, localDateKey, localDateTime, toMinutes } from "@/lib/time";
 import { openingRange } from "@/lib/availability";
 import { ChevronIcon, PhoneIcon, WhatsAppIcon } from "../icons";
+import HoursEditor from "./HoursEditor";
+import NotificationsCard from "./NotificationsCard";
 
 type Booking = {
   id: string;
@@ -69,7 +71,7 @@ export default function AdminApp() {
       </Panel>
     );
   }
-  return <Dashboard email={session.user.email ?? ""} />;
+  return <Dashboard email={session.user.email ?? ""} userId={session.user.id} />;
 }
 
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
@@ -122,9 +124,14 @@ function Login() {
   );
 }
 
-function Dashboard({ email }: { email: string }) {
+function Dashboard({ email, userId }: { email: string; userId: string }) {
   const db = getSupabase()!;
-  const [day, setDay] = useState(() => localDateKey());
+  // A notification opens /admin?day=YYYY-MM-DD on the booking's day.
+  const [day, setDay] = useState(() => {
+    const q = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("day");
+    return q && /^d{4}-d{2}-d{2}$/.test(q) ? q : localDateKey();
+  });
+  const [hours, setHours] = useState<WeeklyHours | null>(null);
   const [view, setView] = useState<"day" | "upcoming">("day");
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [blocked, setBlocked] = useState<Blocked[]>([]);
@@ -140,10 +147,16 @@ function Dashboard({ email }: { email: string }) {
     const from = view === "day" ? localDateTime(day, 0) : new Date();
     const to = view === "day" ? localDateTime(addDays(day, 1), 0) : new Date(Date.now() + 60 * 86_400_000);
     Promise.all([
+      db.from("opening_hours").select("weekday, open_time, close_time"),
       db.from("bookings").select("*").gte("starts_at", from.toISOString()).lt("starts_at", to.toISOString()).order("starts_at"),
       db.from("blocked_times").select("*").gte("ends_at", new Date().toISOString()).order("starts_at"),
-    ]).then(([b, t]) => {
+    ]).then(([h, b, t]) => {
       if (!current) return;
+      if (h.data) {
+        const wh: WeeklyHours = { ...site.hours };
+        for (const r of h.data) wh[r.weekday] = r.open_time && r.close_time ? { open: r.open_time.slice(0, 5), close: r.close_time.slice(0, 5) } : null;
+        setHours(wh);
+      }
       setError(b.error || t.error ? "Couldn't load bookings. Refresh to try again." : null);
       setBookings((b.data as Booking[]) ?? []);
       setBlocked((t.data as Blocked[]) ?? []);
@@ -200,7 +213,7 @@ function Dashboard({ email }: { email: string }) {
         </h1>
         <p className="mt-2 text-sm text-stone">
           {active.length} booking{active.length === 1 ? "" : "s"}
-          {view === "day" && !openingRange(day) ? ". Closed this day." : ""}
+          {view === "day" && !openingRange(day, hours ?? site.hours) ? ". Closed this day." : ""}
           {takings ? `. ${formatPrice(takings)} taken (marked done).` : ""}
         </p>
         {error && (
@@ -267,6 +280,8 @@ function Dashboard({ email }: { email: string }) {
       </div>
 
       <div className="grid h-fit gap-6">
+        <NotificationsCard userId={userId} />
+        {hours && <HoursEditor hours={hours} onSaved={setHours} />}
         <AddBooking key={day} defaultDay={day} onDone={load} />
         <BlockTime key={`block-${day}`} blocked={blocked} defaultDay={day} onDone={load} />
         <p className="text-sm text-stone">
@@ -437,7 +452,6 @@ function BlockTime({ blocked, defaultDay, onDone }: { blocked: Blocked[]; defaul
           ))}
         </ul>
       )}
-      <p className="mt-3 text-xs text-stone">Usual hours: {site.hours[1]?.open}–{site.hours[1]?.close}. Change them in src/config/site.ts.</p>
     </section>
   );
 }

@@ -1,5 +1,5 @@
 import { TZDate } from "@date-fns/tz";
-import { site } from "@/config/site";
+import { site, type WeeklyHours } from "@/config/site";
 
 const tz = site.timezone;
 
@@ -46,18 +46,18 @@ export function formatDateLong(instant: Date | string) {
 }
 
 /** Human status line, e.g. "Open now until 19:00" or "Opens Monday at 10:00". */
-export function openStatus(now: Date = new Date()) {
+export function openStatus(now: Date = new Date(), hours: WeeklyHours = site.hours) {
   const today = localDateKey(now);
   const t = new TZDate(now, tz);
   const nowMins = t.getHours() * 60 + t.getMinutes();
-  const h = site.hours[weekdayOf(today)];
+  const h = hours[weekdayOf(today)];
   if (h && nowMins >= toMinutes(h.open) && nowMins < toMinutes(h.close)) {
     return { open: true, text: `Open now until ${h.close}` };
   }
   if (h && nowMins < toMinutes(h.open)) return { open: false, text: `Opens today at ${h.open}` };
   for (let i = 1; i <= 7; i++) {
     const day = addDays(today, i);
-    const next = site.hours[weekdayOf(day)];
+    const next = hours[weekdayOf(day)];
     if (next) {
       const name = i === 1 ? "tomorrow" : new Intl.DateTimeFormat("en-GB", { weekday: "long", timeZone: "UTC" }).format(new Date(day));
       return { open: false, text: `Opens ${name} at ${next.open}` };

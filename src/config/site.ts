@@ -1,5 +1,7 @@
 // Business details. Edit this file to change contact info, address, hours and booking rules.
 
+export type WeeklyHours = Record<number, { open: string; close: string } | null>;
+
 export const site = {
   name: "SB Studio",
   barber: "Shlomo",
@@ -28,7 +30,8 @@ export const site = {
 
   timezone: "Europe/Gibraltar",
 
-  // Opening hours per weekday (0 = Sunday). `null` = closed. Times are 24h "HH:mm", local Gibraltar time.
+  // DEFAULT opening hours per weekday (0 = Sunday). `null` = closed. 24h "HH:mm", Gibraltar time.
+  // The live hours are edited by Shlomo in /admin (stored in the database); these are only the fallback.
   hours: {
     0: null,
     1: { open: "10:00", close: "19:00" },
@@ -37,7 +40,7 @@ export const site = {
     4: { open: "10:00", close: "19:00" },
     5: { open: "10:00", close: "19:00" },
     6: { open: "10:00", close: "19:00" },
-  } as Record<number, { open: string; close: string } | null>,
+  } as WeeklyHours,
 
   booking: {
     // Start times are offered every N minutes.

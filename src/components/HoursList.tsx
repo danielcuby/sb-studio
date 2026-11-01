@@ -1,21 +1,21 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { site, weekdayNames } from "@/config/site";
+import { weekdayNames, type WeeklyHours } from "@/config/site";
 import { localDateKey, weekdayOf } from "@/lib/time";
 
 // Monday first, the way people read a week.
 const order = [1, 2, 3, 4, 5, 6, 0];
 const noop = () => () => {};
 
-export default function HoursList() {
+export default function HoursList({ hours }: { hours: WeeklyHours }) {
   // Today's weekday in Gibraltar, known only in the browser (the page itself is static).
   const today = useSyncExternalStore(noop, () => weekdayOf(localDateKey()), () => null);
 
   return (
     <dl className="divide-y divide-line border-y border-line">
       {order.map((d) => {
-        const h = site.hours[d];
+        const h = hours[d];
         const isToday = d === today;
         return (
           <div key={d} className={`flex justify-between gap-4 py-3 ${isToday ? "text-bone" : "text-bone/70"}`}>
