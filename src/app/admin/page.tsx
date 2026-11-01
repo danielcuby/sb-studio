@@ -12,7 +12,7 @@ export default function AdminPage() {
   return (
     <main id="main" className="container-x min-h-dvh py-8">
       <div className="mb-10 flex items-center justify-between">
-        <Link href="/" aria-label="SB Studio, home">
+        <Link href="/">
           <Logo />
         </Link>
         <span className="text-sm text-stone">Bookings</span>

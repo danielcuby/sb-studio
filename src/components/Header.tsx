@@ -29,7 +29,7 @@ export default function Header({ solid = false }: { solid?: boolean }) {
       }`}
     >
       <div className="container-x flex h-16 items-center justify-between md:h-[4.5rem]">
-        <Link href="/" aria-label="SB Studio, home" className="text-bone">
+        <Link href="/" className="text-bone">
           <Logo />
         </Link>
         <nav aria-label="Main" className="hidden items-center gap-8 md:flex">

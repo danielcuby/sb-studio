@@ -3,31 +3,17 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRef } from "react";
-import { gsap } from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { useGSAP } from "@gsap/react";
 import { images } from "@/config/images";
 import { site } from "@/config/site";
+import { useScrollTweens } from "@/lib/parallax";
 import Reveal from "./Reveal";
-
-gsap.registerPlugin(ScrollTrigger, useGSAP);
 
 const specialities = ["Skin fades and tapers", "Beard shaping and line-ups", "Student cuts for under-18s"];
 
 export default function About() {
   const root = useRef<HTMLElement>(null);
 
-  useGSAP(
-    () => {
-      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-      gsap.fromTo(
-        ".about-img",
-        { yPercent: -8 },
-        { yPercent: 8, ease: "none", scrollTrigger: { trigger: root.current, start: "top bottom", end: "bottom top", scrub: true } },
-      );
-    },
-    { scope: root },
-  );
+  useScrollTweens(root, [{ target: ".about-img", from: { yPercent: -8 }, to: { yPercent: 8 }, start: "top bottom" }]);
 
   return (
     <section ref={root} id="about" className="isolate border-y border-line bg-coal py-24 md:py-36" aria-labelledby="about-title">

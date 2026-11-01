@@ -3,16 +3,12 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRef } from "react";
-import { gsap } from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { useGSAP } from "@gsap/react";
 import { images } from "@/config/images";
 import { site } from "@/config/site";
 import { services, formatPrice } from "@/config/services";
+import { useScrollTweens } from "@/lib/parallax";
 import { WhatsAppIcon } from "./icons";
 import OpenStatus from "./OpenStatus";
-
-gsap.registerPlugin(ScrollTrigger, useGSAP);
 
 const lines = ["One chair.", "One barber.", "Your time."];
 const from = Math.min(...services.map((s) => s.price));
@@ -20,24 +16,11 @@ const from = Math.min(...services.map((s) => s.price));
 export default function Hero() {
   const root = useRef<HTMLElement>(null);
 
-  useGSAP(
-    () => {
-      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-      // Parallax drift as you scroll away (the push-in on load is CSS, see globals.css).
-      gsap.to(".hero-media", {
-        yPercent: 18,
-        ease: "none",
-        scrollTrigger: { trigger: root.current, start: "top top", end: "bottom top", scrub: true },
-      });
-      gsap.to(".hero-copy", {
-        yPercent: -12,
-        opacity: 0.2,
-        ease: "none",
-        scrollTrigger: { trigger: root.current, start: "top top", end: "bottom top", scrub: true },
-      });
-    },
-    { scope: root },
-  );
+  // Parallax drift as you scroll away (the push-in on load is CSS, see globals.css).
+  useScrollTweens(root, [
+    { target: ".hero-media", to: { yPercent: 18 } },
+    { target: ".hero-copy", to: { yPercent: -12, opacity: 0.2 } },
+  ]);
 
   return (
     <section ref={root} className="relative isolate flex min-h-[100svh] flex-col justify-end overflow-hidden" aria-labelledby="hero-title">
@@ -58,7 +41,7 @@ export default function Hero() {
         <h1 id="hero-title" className="text-[clamp(4.2rem,15vw,12.5rem)] uppercase">
           {lines.map((line, i) => (
             <span key={line} className="block overflow-hidden pb-[0.06em]">
-              <span className="hero-line block" style={{ animationDelay: `${0.15 + i * 0.12}s` }}>
+              <span className="hero-line block" style={{ animationDelay: `${i * 0.1}s` }}>
                 {line}
               </span>
             </span>

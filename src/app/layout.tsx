@@ -3,6 +3,7 @@ import { Big_Shoulders, Schibsted_Grotesk } from "next/font/google";
 import { site } from "@/config/site";
 import { localBusinessSchema } from "@/lib/schema";
 import SmoothScroll from "@/components/SmoothScroll";
+import RevealObserver from "@/components/RevealObserver";
 import "./globals.css";
 
 const display = Big_Shoulders({
@@ -56,6 +57,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           Skip to content
         </a>
         <SmoothScroll />
+        <RevealObserver />
         {children}
         <script
           type="application/ld+json"

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { ChevronIcon } from "../icons";
+import { localDateKey } from "@/lib/time";
 
 const weekdayShort = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -26,7 +27,7 @@ export default function Calendar({
   const daysInMonth = new Date(Date.UTC(y, m, 0)).getUTCDate();
   const lead = (first.getUTCDay() + 6) % 7; // Monday-first offset
   const label = new Intl.DateTimeFormat("en-GB", { month: "long", year: "numeric", timeZone: "UTC" }).format(first);
-  const today = enabled[0];
+  const today = localDateKey();
 
   return (
     <div className="rounded-sm border border-line bg-coal p-4 sm:p-6">

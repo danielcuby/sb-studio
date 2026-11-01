@@ -70,8 +70,8 @@ export const StarIcon = (p: P) => (
 /** SB Studio mark: a straight razor's edge as a brass rule between S and B. */
 export const Logo = ({ className }: { className?: string }) => (
   <span className={`inline-flex items-baseline gap-2 font-display font-extrabold uppercase leading-none tracking-wide ${className ?? ""}`}>
-    <span className="text-[1.65rem]">SB</span>
-    <span className="h-[2px] w-5 translate-y-[-0.35rem] bg-brass" aria-hidden="true" />
+    <span className="text-[1.65rem]">SB</span>{" "}
+    <span className="h-[2px] w-5 translate-y-[-0.35rem] bg-brass" aria-hidden="true" />{" "}
     <span className="text-[1.05rem] font-semibold tracking-[0.18em] text-stone">Studio</span>
   </span>
 );

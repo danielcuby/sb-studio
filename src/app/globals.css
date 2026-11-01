@@ -161,7 +161,7 @@ html.lenis body {
 /* Hero load sequence: pure CSS so it runs on first paint, before JavaScript. */
 @keyframes rise {
   from {
-    transform: translateY(105%);
+    transform: translateY(48%);
   }
 }
 @keyframes fade-up {
@@ -190,5 +190,32 @@ html.lenis body {
 @keyframes push-in {
   from {
     transform: scale(1.18);
+  }
+}
+
+/* Scroll reveals (see Reveal.tsx). Only hidden once JavaScript is running, so content never stays invisible. */
+.js-reveal [data-reveal] {
+  opacity: 0;
+  transform: translateY(28px);
+  transition:
+    opacity 0.9s var(--ease-out-expo) var(--reveal-delay, 0s),
+    transform 0.9s var(--ease-out-expo) var(--reveal-delay, 0s);
+}
+.js-reveal [data-reveal="clip"] {
+  opacity: 1;
+  transform: none;
+  clip-path: inset(100% 0 0 0);
+  transition: clip-path 1.1s var(--ease-out-expo) var(--reveal-delay, 0s);
+}
+.js-reveal [data-reveal].is-revealed {
+  opacity: 1;
+  transform: none;
+  clip-path: inset(0 0 0 0);
+}
+@media (prefers-reduced-motion: reduce) {
+  .js-reveal [data-reveal] {
+    opacity: 1;
+    transform: none;
+    clip-path: none;
   }
 }

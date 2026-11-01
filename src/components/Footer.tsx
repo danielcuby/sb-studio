@@ -56,7 +56,7 @@ export default function Footer() {
           </ul>
         </div>
       </div>
-      <div className="container-x mt-12 flex flex-wrap justify-between gap-3 text-xs text-stone/70">
+      <div className="container-x mt-12 flex flex-wrap justify-between gap-3 text-xs text-stone">
         <p>© {site.name}, Gibraltar</p>
         <p>
           Photos from{" "}
