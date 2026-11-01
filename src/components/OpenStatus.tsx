@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { openStatus } from "@/lib/time";
-import type { WeeklyHours } from "@/config/site";
+import type { Hours } from "@/config/site";
 
 /** "Open now until 19:00" with a live dot. Rendered on the client so it's always current. */
-export default function OpenStatus({ hours, className }: { hours: WeeklyHours; className?: string }) {
+export default function OpenStatus({ hours, className }: { hours: Hours; className?: string }) {
   const [status, setStatus] = useState<ReturnType<typeof openStatus> | null>(null);
 
   useEffect(() => {

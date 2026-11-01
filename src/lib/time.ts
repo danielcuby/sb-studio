@@ -1,5 +1,5 @@
 import { TZDate } from "@date-fns/tz";
-import { site, type WeeklyHours } from "@/config/site";
+import { site, type Hours, type TimeRange } from "@/config/site";
 
 const tz = site.timezone;
 
@@ -45,19 +45,32 @@ export function formatDateLong(instant: Date | string) {
   );
 }
 
+/** "24:00" (midnight as a closing time) reads as "00:00". */
+export const displayTime = (hhmm: string) => (hhmm === "24:00" ? "00:00" : hhmm);
+
+/** "10:00–12:00, 15:00–16:00", or "Closed". */
+export const describeRanges = (ranges: TimeRange[], sep = "–") =>
+  ranges.length ? ranges.map((r) => `${r.open}${sep}${displayTime(r.close)}`).join(", ") : "Closed";
+
+/** Working blocks on a date: that date's own hours if Shlomo set any, otherwise the usual weekday hours. Sorted. */
+export function rangesOn(date: string, hours: Hours): TimeRange[] {
+  const ranges = hours.days[date] ?? hours.weekly[weekdayOf(date)] ?? [];
+  return [...ranges].sort((a, b) => toMinutes(a.open) - toMinutes(b.open));
+}
+
 /** Human status line, e.g. "Open now until 19:00" or "Opens Monday at 10:00". */
-export function openStatus(now: Date = new Date(), hours: WeeklyHours = site.hours) {
+export function openStatus(now: Date = new Date(), hours: Hours = { weekly: site.hours, days: {} }) {
   const today = localDateKey(now);
   const t = new TZDate(now, tz);
   const nowMins = t.getHours() * 60 + t.getMinutes();
-  const h = hours[weekdayOf(today)];
-  if (h && nowMins >= toMinutes(h.open) && nowMins < toMinutes(h.close)) {
-    return { open: true, text: `Open now until ${h.close}` };
-  }
-  if (h && nowMins < toMinutes(h.open)) return { open: false, text: `Opens today at ${h.open}` };
-  for (let i = 1; i <= 7; i++) {
+  const todays = rangesOn(today, hours);
+  const current = todays.find((r) => nowMins >= toMinutes(r.open) && nowMins < toMinutes(r.close));
+  if (current) return { open: true, text: `Open now until ${displayTime(current.close)}` };
+  const later = todays.find((r) => nowMins < toMinutes(r.open));
+  if (later) return { open: false, text: `Opens today at ${later.open}` };
+  for (let i = 1; i <= 14; i++) {
     const day = addDays(today, i);
-    const next = hours[weekdayOf(day)];
+    const next = rangesOn(day, hours)[0];
     if (next) {
       const name = i === 1 ? "tomorrow" : new Intl.DateTimeFormat("en-GB", { weekday: "long", timeZone: "UTC" }).format(new Date(day));
       return { open: false, text: `Opens ${name} at ${next.open}` };

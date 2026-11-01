@@ -1,6 +1,11 @@
 // Business details. Edit this file to change contact info, address, hours and booking rules.
 
-export type WeeklyHours = Record<number, { open: string; close: string } | null>;
+/** One block of working time, 24h "HH:mm". "24:00" as a close time means midnight. */
+export type TimeRange = { open: string; close: string };
+/** Working blocks per weekday (0 = Sunday). An empty list = closed. */
+export type WeeklyHours = Record<number, TimeRange[]>;
+/** Weekly hours plus one-off changes for specific dates ("YYYY-MM-DD"), which replace that weekday's hours. */
+export type Hours = { weekly: WeeklyHours; days: Record<string, TimeRange[]> };
 
 export const site = {
   name: "SB Studio",
@@ -30,23 +35,26 @@ export const site = {
 
   timezone: "Europe/Gibraltar",
 
-  // DEFAULT opening hours per weekday (0 = Sunday). `null` = closed. 24h "HH:mm", Gibraltar time.
+  // DEFAULT opening hours per weekday (0 = Sunday). Empty list = closed. 24h "HH:mm", Gibraltar time.
+  // A day can have several blocks, e.g. [{ open: "10:00", close: "12:00" }, { open: "15:00", close: "16:00" }].
   // The live hours are edited by Shlomo in /admin (stored in the database); these are only the fallback.
   hours: {
-    0: null,
-    1: { open: "10:00", close: "19:00" },
-    2: { open: "10:00", close: "19:00" },
-    3: { open: "10:00", close: "19:00" },
-    4: { open: "10:00", close: "19:00" },
-    5: { open: "10:00", close: "19:00" },
-    6: { open: "10:00", close: "19:00" },
+    0: [],
+    1: [{ open: "10:00", close: "19:00" }],
+    2: [{ open: "10:00", close: "19:00" }],
+    3: [{ open: "10:00", close: "19:00" }],
+    4: [{ open: "10:00", close: "19:00" }],
+    5: [{ open: "10:00", close: "19:00" }],
+    6: [{ open: "10:00", close: "19:00" }],
   } as WeeklyHours,
 
   booking: {
     // Start times are offered every N minutes.
     slotIntervalMinutes: 15,
-    // Earliest a customer can book, counted from now.
-    minNoticeMinutes: 60,
+    // Earliest a customer can book, counted from now (3 hours).
+    minNoticeMinutes: 180,
+    // Customers can cancel online up to this many hours before the appointment. After that, WhatsApp.
+    cancelUntilHours: 24,
     // How far ahead the calendar goes.
     maxDaysAhead: 30,
   },

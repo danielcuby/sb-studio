@@ -1,40 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { getSupabase, supabaseConfigured } from "@/lib/supabase";
-import { services, getService, formatPrice } from "@/config/services";
-import { site, type WeeklyHours } from "@/config/site";
-import { addDays, formatDateLong, formatTime, localDateKey, localDateTime, toMinutes } from "@/lib/time";
-import { openingRange } from "@/lib/availability";
-import { ChevronIcon, PhoneIcon, WhatsAppIcon } from "../icons";
+import { site, type Hours } from "@/config/site";
+import { addDays, describeRanges, formatDateLong, formatTime, localDateKey, localDateTime, rangesOn, toMinutes } from "@/lib/time";
+import { rowsToHours } from "@/lib/hours-rows";
+import BookingCard from "./BookingCard";
+import { inputCls as input, must, useLoad, type Blocked, type Booking } from "./data";
+import DayPanel from "./DayPanel";
 import HoursEditor from "./HoursEditor";
+import MonthCalendar, { shiftMonth } from "./MonthCalendar";
 import NotificationsCard from "./NotificationsCard";
-
-type Booking = {
-  id: string;
-  service_id: string;
-  service_name: string;
-  price_gbp: number;
-  duration_minutes: number;
-  starts_at: string;
-  ends_at: string;
-  customer_name: string;
-  customer_phone: string;
-  customer_email: string | null;
-  notes: string | null;
-  status: "confirmed" | "completed" | "no_show" | "cancelled";
-  source: "online" | "admin";
-};
-type Blocked = { id: string; starts_at: string; ends_at: string; reason: string | null };
-
-const input = "mt-1 block w-full rounded-sm border border-line bg-ink px-3 py-2.5 text-bone focus:border-brass focus:outline-none";
-const statusLabel: Record<Booking["status"], string> = {
-  confirmed: "Booked",
-  completed: "Done",
-  no_show: "No-show",
-  cancelled: "Cancelled",
-};
 
 export default function AdminApp() {
   const db = getSupabase();
@@ -124,251 +101,224 @@ function Login() {
   );
 }
 
+type Tab = "calendar" | "week" | "settings";
+const tabs: { id: Tab; label: string }[] = [
+  { id: "calendar", label: "Calendar" },
+  { id: "week", label: "Next 7 days" },
+  { id: "settings", label: "Settings" },
+];
+
+const dayOf = (b: Booking) => localDateKey(new Date(b.starts_at));
+
 function Dashboard({ email, userId }: { email: string; userId: string }) {
   const db = getSupabase()!;
   // A notification opens /admin?day=YYYY-MM-DD on the booking's day.
   const [day, setDay] = useState(() => {
     const q = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("day");
-    return q && /^d{4}-d{2}-d{2}$/.test(q) ? q : localDateKey();
+    return q && /^\d{4}-\d{2}-\d{2}$/.test(q) ? q : localDateKey();
   });
-  const [hours, setHours] = useState<WeeklyHours | null>(null);
-  const [view, setView] = useState<"day" | "upcoming">("day");
-  const [bookings, setBookings] = useState<Booking[]>([]);
-  const [blocked, setBlocked] = useState<Blocked[]>([]);
-  const [loadedKey, setLoadedKey] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [reloads, setReloads] = useState(0);
-  const key = `${view}|${day}|${reloads}`;
-  const loading = loadedKey.split("|").slice(0, 2).join("|") !== `${view}|${day}`;
-  const load = useCallback(() => setReloads((n) => n + 1), []);
+  const [month, setMonth] = useState(day.slice(0, 7));
+  const [tab, setTab] = useState<Tab>("calendar");
+  const [bookingsVersion, setBookingsVersion] = useState(0);
+  const [hoursVersion, setHoursVersion] = useState(0);
+  const reloadBookings = () => setBookingsVersion((n) => n + 1);
+  const reloadHours = () => setHoursVersion((n) => n + 1);
+  const today = localDateKey();
 
-  useEffect(() => {
-    let current = true;
-    const from = view === "day" ? localDateTime(day, 0) : new Date();
-    const to = view === "day" ? localDateTime(addDays(day, 1), 0) : new Date(Date.now() + 60 * 86_400_000);
-    Promise.all([
-      db.from("opening_hours").select("weekday, open_time, close_time"),
-      db.from("bookings").select("*").gte("starts_at", from.toISOString()).lt("starts_at", to.toISOString()).order("starts_at"),
-      db.from("blocked_times").select("*").gte("ends_at", new Date().toISOString()).order("starts_at"),
-    ]).then(([h, b, t]) => {
-      if (!current) return;
-      if (h.data) {
-        const wh: WeeklyHours = { ...site.hours };
-        for (const r of h.data) wh[r.weekday] = r.open_time && r.close_time ? { open: r.open_time.slice(0, 5), close: r.close_time.slice(0, 5) } : null;
-        setHours(wh);
-      }
-      setError(b.error || t.error ? "Couldn't load bookings. Refresh to try again." : null);
-      setBookings((b.data as Booking[]) ?? []);
-      setBlocked((t.data as Blocked[]) ?? []);
-      setLoadedKey(key);
-    });
-    return () => {
-      current = false;
-    };
-  }, [db, day, view, key]);
+  const hoursQ = useLoad(`hours|${hoursVersion}`, async () => {
+    const [weekly, dates] = await Promise.all([
+      must(db.from("opening_hours").select("weekday, ranges")),
+      must(db.from("date_hours").select("date, ranges")),
+    ]);
+    return rowsToHours(weekly, dates);
+  });
+  const hours: Hours = hoursQ.data ?? { weekly: site.hours, days: {} };
 
-  async function setStatus(b: Booking, status: Booking["status"]) {
-    if (status === "cancelled" && !confirm(`Cancel ${b.customer_name}'s booking at ${formatTime(b.starts_at)}? The slot opens up again.`)) return;
-    const { error } = await db.from("bookings").update({ status }).eq("id", b.id);
-    if (error) setError(error.code === "23P01" ? "That time now overlaps another booking." : "Couldn't update the booking.");
-    load();
-  }
+  // The whole visible month at once; the day panel and the counts both come from it.
+  const monthQ = useLoad(`month|${month}|${bookingsVersion}`, () =>
+    must<Booking[]>(
+      db
+        .from("bookings")
+        .select("*")
+        .gte("starts_at", localDateTime(`${month}-01`, 0).toISOString())
+        .lt("starts_at", localDateTime(`${shiftMonth(month, 1)}-01`, 0).toISOString())
+        .order("starts_at"),
+    ),
+  );
+  const weekQ = useLoad(`week|${today}|${bookingsVersion}`, () =>
+    must<Booking[]>(
+      db
+        .from("bookings")
+        .select("*")
+        .gte("starts_at", localDateTime(today, 0).toISOString())
+        .lt("starts_at", localDateTime(addDays(today, 7), 0).toISOString())
+        .order("starts_at"),
+    ),
+  );
+  const blockedQ = useLoad(`blocked|${bookingsVersion}`, () =>
+    must<Blocked[]>(db.from("blocked_times").select("*").gte("ends_at", new Date(Date.now() - 31 * 86_400_000).toISOString()).order("starts_at")),
+  );
 
-  const active = bookings.filter((b) => b.status !== "cancelled");
-  const takings = bookings.filter((b) => b.status === "completed").reduce((n, b) => n + Number(b.price_gbp), 0);
+  const monthBookings = (monthQ.data ?? []).filter((b) => dayOf(b).startsWith(month));
+  const counts: Record<string, number> = {};
+  for (const b of monthBookings) if (b.status !== "cancelled") counts[dayOf(b)] = (counts[dayOf(b)] ?? 0) + 1;
+  const dayLoaded = day.startsWith(month) && !monthQ.loading;
+  const loadError = hoursQ.error || monthQ.error || weekQ.error || blockedQ.error;
+
+  const openDay = (d: string) => {
+    setDay(d);
+    setMonth(d.slice(0, 7));
+    setTab("calendar");
+    // On a phone the day is under the calendar, so bring it into view.
+    if (window.matchMedia("(max-width: 1023px)").matches) {
+      requestAnimationFrame(() => document.getElementById("day-panel")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    }
+  };
 
   return (
-    <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_22rem]">
-      <div>
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex rounded-full border border-line p-1">
-            {(["day", "upcoming"] as const).map((v) => (
-              <button
-                key={v}
-                onClick={() => setView(v)}
-                className={`rounded-full px-4 py-1.5 text-sm transition ${view === v ? "bg-brass font-semibold text-ink" : "text-stone hover:text-bone"}`}
-              >
-                {v === "day" ? "Day" : "Next 60 days"}
-              </button>
-            ))}
-          </div>
-          {view === "day" && (
-            <div className="flex items-center gap-2">
-              <button onClick={() => setDay(addDays(day, -1))} className="grid size-10 place-items-center rounded-full border border-line hover:border-brass" aria-label="Previous day">
-                <ChevronIcon direction="left" className="size-4" />
-              </button>
-              <input type="date" value={day} onChange={(e) => e.target.value && setDay(e.target.value)} className="rounded-sm border border-line bg-coal px-3 py-2 text-sm [color-scheme:dark]" />
-              <button onClick={() => setDay(addDays(day, 1))} className="grid size-10 place-items-center rounded-full border border-line hover:border-brass" aria-label="Next day">
-                <ChevronIcon className="size-4" />
-              </button>
-              <button onClick={() => setDay(localDateKey())} className="text-sm text-brass-bright underline underline-offset-4">
-                Today
-              </button>
-            </div>
-          )}
+    <div>
+      <div className="sticky top-0 z-10 -mx-4 mb-8 bg-ink/95 px-4 py-3 backdrop-blur sm:mx-0 sm:px-0">
+        <div className="flex w-full rounded-full border border-line p-1 sm:w-fit" role="tablist">
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              role="tab"
+              aria-selected={tab === t.id}
+              onClick={() => setTab(t.id)}
+              className={`flex-1 rounded-full px-2 py-2 text-sm transition sm:flex-none sm:px-5 ${tab === t.id ? "bg-brass font-semibold text-ink" : "text-stone hover:text-bone"}`}
+            >
+              {t.label}
+            </button>
+          ))}
         </div>
-
-        <h1 className="mt-8 font-display text-5xl font-extrabold uppercase">
-          {view === "day" ? formatDateLong(`${day}T12:00:00Z`) : "Upcoming"}
-        </h1>
-        <p className="mt-2 text-sm text-stone">
-          {active.length} booking{active.length === 1 ? "" : "s"}
-          {view === "day" && !openingRange(day, hours ?? site.hours) ? ". Closed this day." : ""}
-          {takings ? `. ${formatPrice(takings)} taken (marked done).` : ""}
-        </p>
-        {error && (
-          <p role="alert" className="mt-4 rounded-sm border border-danger/40 bg-danger/10 px-4 py-3 text-sm">
-            {error}
-          </p>
-        )}
-
-        <ul className="mt-6 grid gap-3">
-          {loading && <li className="h-24 animate-pulse rounded-sm bg-coal" />}
-          {!loading && bookings.length === 0 && <li className="rounded-sm border border-dashed border-line p-8 text-center text-stone">No bookings.</li>}
-          {!loading &&
-            bookings.map((b) => (
-              <li key={b.id} className={`rounded-sm border border-line bg-coal p-5 ${b.status === "cancelled" ? "opacity-50" : ""}`}>
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="font-display text-3xl font-bold tabular-nums">
-                      {view === "upcoming" && <span className="mr-2 text-xl text-stone">{formatDateLong(b.starts_at)}</span>}
-                      {formatTime(b.starts_at)}–{formatTime(b.ends_at)}
-                    </p>
-                    <p className="mt-1 font-semibold">
-                      {b.customer_name} <span className="font-normal text-stone">· {b.service_name}, {formatPrice(Number(b.price_gbp))}</span>
-                    </p>
-                    {b.notes && <p className="mt-1 text-sm text-bone/80">“{b.notes}”</p>}
-                    <p className="mt-2 flex flex-wrap gap-4 text-sm">
-                      <a className="inline-flex items-center gap-1.5 text-brass-bright" href={`https://wa.me/${b.customer_phone.replace(/\D/g, "")}`} target="_blank" rel="noopener">
-                        <WhatsAppIcon className="size-4" /> {b.customer_phone}
-                      </a>
-                      <a className="inline-flex items-center gap-1.5 text-stone hover:text-bone" href={`tel:${b.customer_phone.replace(/[^\d+]/g, "")}`}>
-                        <PhoneIcon className="size-4" /> Call
-                      </a>
-                      {b.customer_email && <a className="text-stone hover:text-bone" href={`mailto:${b.customer_email}`}>{b.customer_email}</a>}
-                    </p>
-                  </div>
-                  <span className="rounded-full border border-line px-3 py-1 text-xs">
-                    {statusLabel[b.status]}
-                    {b.source === "admin" ? " · added by you" : ""}
-                  </span>
-                </div>
-                <div className="mt-4 flex flex-wrap gap-2 text-sm">
-                  {b.status !== "completed" && b.status !== "cancelled" && (
-                    <button onClick={() => setStatus(b, "completed")} className="rounded-full bg-brass px-4 py-1.5 font-semibold text-ink hover:bg-brass-bright">
-                      Mark done
-                    </button>
-                  )}
-                  {b.status === "confirmed" && (
-                    <button onClick={() => setStatus(b, "no_show")} className="rounded-full border border-line px-4 py-1.5 hover:border-bone">
-                      No-show
-                    </button>
-                  )}
-                  {b.status !== "cancelled" ? (
-                    <button onClick={() => setStatus(b, "cancelled")} className="rounded-full border border-danger/50 px-4 py-1.5 text-danger hover:bg-danger/10">
-                      Cancel
-                    </button>
-                  ) : (
-                    <button onClick={() => setStatus(b, "confirmed")} className="rounded-full border border-line px-4 py-1.5 hover:border-bone">
-                      Restore
-                    </button>
-                  )}
-                </div>
-              </li>
-            ))}
-        </ul>
       </div>
 
-      <div className="grid h-fit gap-6">
-        <NotificationsCard userId={userId} />
-        {hours && <HoursEditor hours={hours} onSaved={setHours} />}
-        <AddBooking key={day} defaultDay={day} onDone={load} />
-        <BlockTime key={`block-${day}`} blocked={blocked} defaultDay={day} onDone={load} />
-        <p className="text-sm text-stone">
-          Signed in as {email}.{" "}
-          <button onClick={() => db.auth.signOut()} className="underline underline-offset-4 hover:text-bone">
-            Sign out
-          </button>
+      {loadError && (
+        <p role="alert" className="mb-6 rounded-sm border border-danger/40 bg-danger/10 px-4 py-3 text-sm">
+          Couldn&apos;t load everything. Check your connection and refresh.
         </p>
-      </div>
+      )}
+
+      {tab === "calendar" && (
+        <div className="grid gap-10 lg:grid-cols-[26rem_minmax(0,1fr)] lg:gap-14">
+          <div className="lg:sticky lg:top-24 lg:h-fit">
+            <MonthCalendar
+              month={month}
+              onMonth={setMonth}
+              selected={day}
+              onSelect={openDay}
+              counts={counts}
+              hours={hours}
+            />
+          </div>
+          <div id="day-panel" className="scroll-mt-24">
+            <DayPanel
+              day={day}
+              hours={hours}
+              bookings={day.startsWith(month) ? monthBookings.filter((b) => dayOf(b) === day) : []}
+              blocked={blockedQ.data ?? []}
+              loading={!dayLoaded}
+              onBookingsChanged={reloadBookings}
+              onHoursChanged={reloadHours}
+            />
+          </div>
+        </div>
+      )}
+
+      {tab === "week" && <NextSevenDays bookings={weekQ.data} loading={weekQ.loading} hours={hours} onOpenDay={openDay} onChanged={reloadBookings} />}
+
+      {tab === "settings" && (
+        <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
+          <div className="grid gap-6">
+            <NotificationsCard userId={userId} />
+            {hoursQ.data && <HoursEditor key={hoursVersion} hours={hoursQ.data.weekly} onSaved={reloadHours} />}
+          </div>
+          <div className="grid gap-6">
+            <BlockTime blocked={(blockedQ.data ?? []).filter((t) => new Date(t.ends_at) > new Date())} onDone={reloadBookings} />
+            <p className="text-sm text-stone">
+              Signed in as {email}.{" "}
+              <button onClick={() => db.auth.signOut()} className="underline underline-offset-4 hover:text-bone">
+                Sign out
+              </button>
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function AddBooking({ defaultDay, onDone }: { defaultDay: string; onDone: () => void }) {
-  const db = getSupabase()!;
-  const [open, setOpen] = useState(false);
-  const [f, setF] = useState({ service: services[0].id, date: defaultDay, time: "10:00", name: "", phone: "" });
-  const [msg, setMsg] = useState<string | null>(null);
+function NextSevenDays({
+  bookings,
+  loading,
+  hours,
+  onOpenDay,
+  onChanged,
+}: {
+  bookings?: Booking[];
+  loading: boolean;
+  hours: Hours;
+  onOpenDay: (day: string) => void;
+  onChanged: () => void;
+}) {
+  const [error, setError] = useState<string | null>(null);
+  const today = localDateKey();
+  const days = Array.from({ length: 7 }, (_, i) => addDays(today, i));
+  const all = bookings ?? [];
+  const total = all.filter((b) => b.status !== "cancelled").length;
+  const weekday = (d: string) => new Intl.DateTimeFormat("en-GB", { weekday: "long", timeZone: "UTC" }).format(new Date(d));
+  const dayMonth = (d: string) => new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", timeZone: "UTC" }).format(new Date(d));
 
   return (
-    <section className="rounded-sm border border-line bg-coal p-5">
-      <button onClick={() => setOpen(!open)} className="flex w-full items-center justify-between font-semibold" aria-expanded={open}>
-        Add a booking <span className="text-brass">{open ? "–" : "+"}</span>
-      </button>
-      {open && (
-        <form
-          className="mt-4 grid gap-3 text-sm"
-          onSubmit={async (e) => {
-            e.preventDefault();
-            const s = getService(f.service)!;
-            const start = localDateTime(f.date, toMinutes(f.time));
-            const { error } = await db.from("bookings").insert({
-              service_id: s.id,
-              service_name: s.name,
-              price_gbp: s.price,
-              duration_minutes: s.durationMinutes,
-              starts_at: start.toISOString(),
-              ends_at: new Date(start.getTime() + s.durationMinutes * 60_000).toISOString(),
-              customer_name: f.name,
-              customer_phone: f.phone,
-              source: "admin",
-            });
-            setMsg(error ? (error.code === "23P01" ? "That time overlaps another booking." : "Couldn't add the booking. Check the details.") : "Booking added.");
-            if (!error) {
-              setF({ ...f, name: "", phone: "" });
-              onDone();
-            }
-          }}
-        >
-          <label>
-            Service
-            <select value={f.service} onChange={(e) => setF({ ...f, service: e.target.value })} className={input}>
-              {services.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name} ({s.durationMinutes} min, {formatPrice(s.price)})
-                </option>
-              ))}
-            </select>
-          </label>
-          <div className="grid grid-cols-2 gap-3">
-            <label>
-              Day
-              <input type="date" required value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} className={`${input} [color-scheme:dark]`} />
-            </label>
-            <label>
-              Time
-              <input type="time" required step={300} value={f.time} onChange={(e) => setF({ ...f, time: e.target.value })} className={`${input} [color-scheme:dark]`} />
-            </label>
-          </div>
-          <label>
-            Name
-            <input required minLength={1} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} className={input} />
-          </label>
-          <label>
-            Phone
-            <input required minLength={6} type="tel" value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} className={input} />
-          </label>
-          {msg && <p role="status">{msg}</p>}
-          <button className="btn btn-primary min-h-11">Add booking</button>
-        </form>
+    <div className="mx-auto max-w-3xl">
+      <h1 className="font-display text-5xl font-extrabold uppercase">Next 7 days</h1>
+      <p className="mt-2 text-stone">{bookings ? `${total} booking${total === 1 ? "" : "s"}. Tap a day to open it in the calendar.` : "Loading…"}</p>
+      {error && (
+        <p role="alert" className="mt-4 rounded-sm border border-danger/40 bg-danger/10 px-4 py-3 text-sm">
+          {error}
+        </p>
       )}
-    </section>
+      <ol className={`mt-8 grid gap-8 transition-opacity ${loading && bookings ? "opacity-60" : ""}`}>
+        {days.map((d, i) => {
+          const list = all.filter((b) => dayOf(b) === d);
+          const active = list.filter((b) => b.status !== "cancelled").length;
+          return (
+            <li key={d}>
+              <button onClick={() => onOpenDay(d)} className="group flex w-full flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-b border-line pb-2 text-left">
+                <span>
+                  <span className="font-display text-3xl font-bold uppercase group-hover:text-brass-bright">
+                    {i === 0 ? "Today" : i === 1 ? "Tomorrow" : weekday(d)}
+                  </span>{" "}
+                  <span className="text-stone">
+                    {i < 2 ? `${weekday(d)} ` : ""}
+                    {dayMonth(d)}
+                  </span>
+                </span>
+                <span className="text-sm text-stone">
+                  {active ? <span className="font-semibold text-brass-bright">{active} booked · </span> : null}
+                  {describeRanges(rangesOn(d, hours))}
+                </span>
+              </button>
+              {!bookings && <div className="mt-3 h-16 animate-pulse rounded-sm bg-coal" />}
+              {bookings && list.length === 0 && <p className="mt-3 text-sm text-stone">No bookings.</p>}
+              {list.length > 0 && (
+                <ul className="mt-3 grid gap-3">
+                  {list.map((b) => (
+                    <BookingCard key={b.id} b={b} onChanged={onChanged} onError={setError} />
+                  ))}
+                </ul>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+    </div>
   );
 }
 
-function BlockTime({ blocked, defaultDay, onDone }: { blocked: Blocked[]; defaultDay: string; onDone: () => void }) {
+function BlockTime({ blocked, onDone }: { blocked: Blocked[]; onDone: () => void }) {
   const db = getSupabase()!;
+  const defaultDay = localDateKey();
   const [open, setOpen] = useState(false);
   const [f, setF] = useState({ from: defaultDay, to: defaultDay, wholeDay: true, start: "13:00", end: "14:00", reason: "" });
   const [msg, setMsg] = useState<string | null>(null);
@@ -376,9 +326,11 @@ function BlockTime({ blocked, defaultDay, onDone }: { blocked: Blocked[]; defaul
   return (
     <section className="rounded-sm border border-line bg-coal p-5">
       <button onClick={() => setOpen(!open)} className="flex w-full items-center justify-between font-semibold" aria-expanded={open}>
-        Block off time <span className="text-brass">{open ? "–" : "+"}</span>
+        Holidays and time off <span className="text-brass">{open ? "–" : "+"}</span>
       </button>
-      <p className="mt-1 text-xs text-stone">Holidays, breaks, or anything else. Customers can&apos;t book blocked time.</p>
+      <p className="mt-1 text-xs text-stone">
+        Block several days (a holiday) or a few hours. Customers can&apos;t book blocked time. To change one day&apos;s hours, tap it in the calendar.
+      </p>
       {open && (
         <form
           className="mt-4 grid gap-3 text-sm"

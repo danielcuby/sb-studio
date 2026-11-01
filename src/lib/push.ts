@@ -2,7 +2,7 @@ import "server-only";
 import webpush from "web-push";
 import { site } from "@/config/site";
 import { getSupabase } from "./supabase";
-import { formatDateLong, formatTime } from "./time";
+import { formatDateLong, formatTime, localDateKey } from "./time";
 
 /**
  * Phone notifications to Shlomo's devices (turned on in /admin). Optional: needs the VAPID keys
@@ -12,7 +12,12 @@ const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 const privateKey = process.env.VAPID_PRIVATE_KEY;
 const secret = process.env.PUSH_SECRET;
 
-export async function notifyNewBooking(b: { name: string; serviceName: string; startsAt: string }) {
+type Note = { name: string; serviceName: string; startsAt: string };
+
+export const notifyNewBooking = (b: Note) => notify(b, `New booking: ${b.name}`);
+export const notifyCancelled = (b: Note) => notify(b, `Cancelled: ${b.name}`, "The slot is free again. ");
+
+async function notify(b: Note, title: string, prefix = "") {
   const db = getSupabase();
   if (!publicKey || !privateKey || !secret || !db) return;
   webpush.setVapidDetails(`${site.url}/admin`, publicKey, privateKey);
@@ -21,9 +26,9 @@ export async function notifyNewBooking(b: { name: string; serviceName: string; s
   if (error) return console.error("get_push_subscriptions failed", error);
 
   const payload = JSON.stringify({
-    title: `New booking: ${b.name}`,
-    body: `${b.serviceName}, ${formatDateLong(b.startsAt)} at ${formatTime(b.startsAt)}`,
-    url: `/admin?day=${b.startsAt.slice(0, 10)}`,
+    title,
+    body: `${prefix}${b.serviceName}, ${formatDateLong(b.startsAt)} at ${formatTime(b.startsAt)}`,
+    url: `/admin?day=${localDateKey(new Date(b.startsAt))}`,
   });
 
   await Promise.allSettled(

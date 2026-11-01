@@ -1,10 +1,10 @@
-import { site, type WeeklyHours } from "@/config/site";
+import { site, type Hours } from "@/config/site";
 import HoursList from "./HoursList";
 import OpenStatus from "./OpenStatus";
 import Reveal from "./Reveal";
 import { PhoneIcon, PinIcon, WhatsAppIcon } from "./icons";
 
-export default function Location({ hours }: { hours: WeeklyHours }) {
+export default function Location({ hours }: { hours: Hours }) {
   const mapSrc = `https://www.google.com/maps?q=${encodeURIComponent(site.mapQuery)}&z=16&output=embed`;
   const directions = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(site.mapQuery)}`;
   const { street, city, postcode } = site.address;
@@ -38,7 +38,7 @@ export default function Location({ hours }: { hours: WeeklyHours }) {
                 <h3 className="font-sans text-lg font-semibold">Opening hours</h3>
                 <OpenStatus hours={hours} />
               </div>
-              <HoursList hours={hours} />
+              <HoursList hours={hours.weekly} />
             </div>
           </Reveal>
           <Reveal delay={0.2}>

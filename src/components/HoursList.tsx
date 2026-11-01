@@ -2,7 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import { weekdayNames, type WeeklyHours } from "@/config/site";
-import { localDateKey, weekdayOf } from "@/lib/time";
+import { describeRanges, localDateKey, weekdayOf } from "@/lib/time";
 
 // Monday first, the way people read a week.
 const order = [1, 2, 3, 4, 5, 6, 0];
@@ -15,7 +15,6 @@ export default function HoursList({ hours }: { hours: WeeklyHours }) {
   return (
     <dl className="divide-y divide-line border-y border-line">
       {order.map((d) => {
-        const h = hours[d];
         const isToday = d === today;
         return (
           <div key={d} className={`flex justify-between gap-4 py-3 ${isToday ? "text-bone" : "text-bone/70"}`}>
@@ -23,7 +22,7 @@ export default function HoursList({ hours }: { hours: WeeklyHours }) {
               {weekdayNames[d]}
               {isToday && <span className="rounded-full bg-brass px-2 py-px text-xs font-semibold text-ink">Today</span>}
             </dt>
-            <dd className="tabular-nums">{h ? `${h.open} – ${h.close}` : "Closed"}</dd>
+            <dd className="text-right tabular-nums">{describeRanges(hours[d] ?? [], " – ")}</dd>
           </div>
         );
       })}

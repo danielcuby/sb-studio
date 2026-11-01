@@ -5,14 +5,14 @@ import { images } from "@/config/images";
 /** schema.org BarberShop (a LocalBusiness) for search engines. */
 export function localBusinessSchema(openingHours: WeeklyHours) {
   const prices = services.map((s) => s.price);
-  const hours = Object.entries(openingHours)
-    .filter(([, h]) => h)
-    .map(([day, h]) => ({
+  const hours = Object.entries(openingHours).flatMap(([day, ranges]) =>
+    ranges.map((r) => ({
       "@type": "OpeningHoursSpecification",
       dayOfWeek: `https://schema.org/${weekdayNames[Number(day)]}`,
-      opens: h!.open,
-      closes: h!.close,
-    }));
+      opens: r.open,
+      closes: r.close === "24:00" ? "23:59" : r.close,
+    })),
+  );
 
   return {
     "@context": "https://schema.org",

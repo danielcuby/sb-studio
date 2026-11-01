@@ -1,10 +1,31 @@
 // Makes someone an admin of the booking dashboard (/admin).
-// Usage: npm run admin:add -- you@example.com "a-long-password"
+// Usage: npm run admin:add                      (asks for email and password; the password is hidden)
+//    or: npm run admin:add -- you@example.com "a-long-password"
 // - Creates the Supabase Auth user if it doesn't exist yet (with that password), then adds them to `admins`.
 // - Needs NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SECRET_KEY in .env.local. Runs on your computer only.
+import { createInterface } from "node:readline";
 import { createClient } from "@supabase/supabase-js";
 
-const [email, password] = process.argv.slice(2);
+function ask(question, { hidden = false } = {}) {
+  return new Promise((resolve) => {
+    const rl = createInterface({ input: process.stdin, output: process.stdout, terminal: true });
+    if (hidden) rl._writeToOutput = (s) => rl.output.write(s.startsWith(question) ? s : s.includes("\n") ? "\n" : "*");
+    rl.question(question, (answer) => {
+      rl.close();
+      resolve(answer.trim());
+    });
+  });
+}
+
+let [email, password] = process.argv.slice(2);
+if (!email) {
+  email = await ask("Shlomo's email: ");
+  password = await ask("Password (at least 10 characters, hidden): ", { hidden: true });
+  if (password && (await ask("Type the password again: ", { hidden: true })) !== password) {
+    console.error("The passwords don't match. Run it again.");
+    process.exit(1);
+  }
+}
 if (!email) {
   console.error('Usage: npm run admin:add -- you@example.com "a-long-password"');
   process.exit(1);

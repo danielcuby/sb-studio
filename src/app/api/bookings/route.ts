@@ -23,7 +23,7 @@ const Body = z.object({
   company: z.string().max(0).optional(),
 });
 
-// POST /api/bookings → { id }
+// POST /api/bookings → { id, cancelToken } (the token is the customer's private cancel link: /cancel?t=…)
 export async function POST(req: Request) {
   const parsed = Body.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
@@ -46,7 +46,7 @@ export async function POST(req: Request) {
   }
 
   const db = getSupabase()!;
-  const { data: id, error } = await db.rpc("create_booking", {
+  const { data, error } = await db.rpc("create_booking", {
     p_service_id: service.id,
     p_service_name: service.name,
     p_price_gbp: service.price,
@@ -64,11 +64,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Couldn't save your booking. Try again, or message us on WhatsApp." }, { status: 500 });
   }
 
+  const { id, cancel_token: cancelToken } = (data as { id: string; cancel_token: string }[])[0];
+
   // Notify Shlomo and send emails after responding, so the customer isn't kept waiting.
   after(() => notifyNewBooking({ name: b.name, serviceName: service.name, startsAt }));
   after(() =>
     sendBookingEmails({
-      id: id as string,
+      id,
+      cancelToken,
       serviceName: service.name,
       price: service.price,
       durationMinutes: service.durationMinutes,
@@ -80,5 +83,5 @@ export async function POST(req: Request) {
     }),
   );
 
-  return NextResponse.json({ id }, { status: 201 });
+  return NextResponse.json({ id, cancelToken }, { status: 201 });
 }

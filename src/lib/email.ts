@@ -13,6 +13,7 @@ const notify = process.env.BOOKING_NOTIFY_EMAIL;
 
 export type BookingEmail = {
   id: string;
+  cancelToken: string;
   serviceName: string;
   price: number;
   durationMinutes: number;
@@ -65,7 +66,7 @@ export async function sendBookingEmails(b: BookingEmail) {
           <p style="margin:0 0 20px;color:#a39885">${site.barber} will see you at ${esc(site.address.street)}, ${esc(site.address.city)}.</p>
           ${details(b)}
           <p style="margin:20px 0 0;padding:12px;border-left:3px solid #c39a5a;background:#26221e"><strong>${site.payment}</strong> Nothing was charged online.</p>
-          <p style="margin:20px 0 0;color:#a39885;font-size:14px">Need to change or cancel? Message us on WhatsApp: <a style="color:#dcb779" href="${site.whatsapp}">${site.phone}</a></p>`),
+          <p style="margin:20px 0 0;color:#a39885;font-size:14px">Can't make it? <a style="color:#dcb779" href="${site.url}/cancel?t=${b.cancelToken}">Cancel your booking</a> up to ${site.booking.cancelUntilHours} hours before. After that, or to change the time, message us on WhatsApp: <a style="color:#dcb779" href="${site.whatsapp}">${site.phone}</a></p>`),
       ),
     );
   }

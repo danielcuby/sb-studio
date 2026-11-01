@@ -63,7 +63,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         {children}
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(localBusinessSchema(hours)).replace(/</g, "\\u003c") }}
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(localBusinessSchema(hours.weekly)).replace(/</g, "\\u003c") }}
         />
       </body>
     </html>

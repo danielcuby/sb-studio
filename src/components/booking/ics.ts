@@ -3,7 +3,7 @@ import { site } from "@/config/site";
 const stamp = (d: Date) => d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
 
 /** Downloads an .ics calendar file for the appointment. */
-export function downloadIcs({ id, title, start, minutes }: { id: string; title: string; start: string; minutes: number }) {
+export function downloadIcs({ id, title, start, minutes, cancelUrl }: { id: string; title: string; start: string; minutes: number; cancelUrl: string }) {
   const s = new Date(start);
   const e = new Date(s.getTime() + minutes * 60_000);
   const location = `${site.name}, ${site.address.street}, ${site.address.city}`;
@@ -18,7 +18,7 @@ export function downloadIcs({ id, title, start, minutes }: { id: string; title: 
     `DTEND:${stamp(e)}`,
     `SUMMARY:${title} at ${site.name}`,
     `LOCATION:${location.replace(/,/g, "\\,")}`,
-    `DESCRIPTION:${site.payment} To change or cancel, WhatsApp ${site.phone}.`,
+    `DESCRIPTION:${site.payment} Cancel up to ${site.booking.cancelUntilHours} hours before: ${cancelUrl} . To change the time, WhatsApp ${site.phone}.`,
     "END:VEVENT",
     "END:VCALENDAR",
   ].join("\r\n");

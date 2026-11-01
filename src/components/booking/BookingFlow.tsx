@@ -5,9 +5,9 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { services, getService, formatPrice, type Service } from "@/config/services";
-import { site, type WeeklyHours } from "@/config/site";
+import { site, type Hours, type WeeklyHours } from "@/config/site";
 import { bookableDates, type Slot } from "@/lib/availability";
-import { formatDateLong } from "@/lib/time";
+import { describeRanges, formatDateLong } from "@/lib/time";
 import Calendar from "./Calendar";
 import { downloadIcs } from "./ics";
 import { CalendarIcon, CashIcon, CheckIcon, ClockIcon, WhatsAppIcon } from "../icons";
@@ -23,7 +23,7 @@ const ease = [0.16, 1, 0.3, 1] as const;
 
 type SlotState = { status: "idle" | "loading" | "ready" | "error" | "not_configured"; slots: Slot[]; message?: string };
 
-export default function BookingFlow({ hours }: { hours: WeeklyHours }) {
+export default function BookingFlow({ hours }: { hours: Hours }) {
   const params = useSearchParams();
   const preselected = getService(params.get("service"));
   const reduce = useReducedMotion();
@@ -39,7 +39,7 @@ export default function BookingFlow({ hours }: { hours: WeeklyHours }) {
   const [form, setForm] = useState({ name: "", phone: "", email: "", notes: "", company: "" });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [bookingId, setBookingId] = useState<string | null>(null);
+  const [booked, setBooked] = useState<{ id: string; cancelToken: string } | null>(null);
   const dates = useMemo(() => bookableDates(new Date(), hours), [hours]);
 
   const go = (s: Step) => {
@@ -83,7 +83,7 @@ export default function BookingFlow({ hours }: { hours: WeeklyHours }) {
       });
       const j = await r.json();
       if (r.ok) {
-        setBookingId(j.id);
+        setBooked({ id: j.id, cancelToken: j.cancelToken });
         go("done");
       } else if (j.error === "slot_taken") {
         setSlot(null);
@@ -104,8 +104,8 @@ export default function BookingFlow({ hours }: { hours: WeeklyHours }) {
   const canOpen = (s: Step) =>
     s === "service" || (s === "date" && !!service) || (s === "time" && !!service && !!date) || (s === "details" && !!slot);
 
-  if (step === "done" && service && slot && bookingId) {
-    return <Confirmation service={service} slot={slot} id={bookingId} name={form.name} />;
+  if (step === "done" && service && slot && booked) {
+    return <Confirmation service={service} slot={slot} id={booked.id} cancelToken={booked.cancelToken} name={form.name} />;
   }
 
   return (
@@ -181,7 +181,7 @@ export default function BookingFlow({ hours }: { hours: WeeklyHours }) {
                 <h1 id="date-title" className="font-display text-5xl font-extrabold uppercase md:text-6xl">
                   Pick a day
                 </h1>
-                <p className="mt-3 text-stone">{describeOpenDays(hours)}</p>
+                <p className="mt-3 text-stone">{describeOpenDays(hours.weekly)}</p>
                 <div className="mt-8 max-w-md">
                   <Calendar
                     enabled={dates}
@@ -207,6 +207,7 @@ export default function BookingFlow({ hours }: { hours: WeeklyHours }) {
                     Change day
                   </button>
                 </p>
+                <p className="mt-1 text-sm text-stone">Book at least {site.booking.minNoticeMinutes / 60} hours ahead. For sooner, message us on WhatsApp.</p>
                 {error && <Alert>{error}</Alert>}
                 <div className="mt-8">
                   <TimeSlots
@@ -326,12 +327,12 @@ function PayNote({ className }: { className?: string }) {
 }
 
 function describeOpenDays(hours: WeeklyHours) {
-  const open = Object.values(hours).filter((h) => h !== null);
-  const closed = Object.entries(hours).filter(([, h]) => !h).map(([d]) => Number(d));
+  const open = Object.values(hours).filter((h) => h.length).map((h) => describeRanges(h));
+  const closed = Object.entries(hours).filter(([, h]) => !h.length).map(([d]) => Number(d));
   const names = ["Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays"];
   const closedText = closed.length ? `closed ${closed.map((d) => names[d]).join(" and ")}` : "";
-  const sameHours = open.length > 0 && open.every((h) => h.open === open[0].open && h.close === open[0].close);
-  const parts = [sameHours ? `Open ${open[0].open}–${open[0].close}` : "", closedText].filter(Boolean);
+  const sameHours = open.length > 0 && open.every((h) => h === open[0]);
+  const parts = [sameHours ? `Open ${open[0]}` : "", closedText].filter(Boolean);
   const sentence = parts.join(", ");
   return `${sentence.charAt(0).toUpperCase()}${sentence.slice(1)}${sentence ? "." : ""} Crossed-out days are closed.`;
 }
@@ -441,7 +442,8 @@ function Row({ label, value, muted }: { label: string; value: string; muted?: bo
   );
 }
 
-function Confirmation({ service, slot, id, name }: { service: Service; slot: Slot; id: string; name: string }) {
+function Confirmation({ service, slot, id, cancelToken, name }: { service: Service; slot: Slot; id: string; cancelToken: string; name: string }) {
+  const cancelUrl = `${window.location.origin}/cancel?t=${cancelToken}`;
   const when = `${formatDateLong(slot.startsAt)} at ${slot.time}`;
   const message = encodeURIComponent(`Hi ${site.barber}, I've just booked a ${service.name.toLowerCase()} on ${when}. ${name}`);
   return (
@@ -474,14 +476,25 @@ function Confirmation({ service, slot, id, name }: { service: Service; slot: Slo
         <p className="flex items-center gap-3 font-semibold">
           <CashIcon className="size-5 text-brass" /> {formatPrice(service.price)} to pay in person. Cash or Revolut.
         </p>
-        <p className="text-sm text-stone">Nothing has been charged. Need to change or cancel? Message us on WhatsApp.</p>
+        <p className="text-sm text-stone">Nothing has been charged.</p>
+      </div>
+
+      <div className="mt-4 rounded-sm border border-line p-6 text-left text-sm">
+        <p className="font-semibold">Can&apos;t make it?</p>
+        <p className="mt-1 text-stone">
+          Cancel online up to {site.booking.cancelUntilHours} hours before with your private link. It&apos;s also in the calendar file
+          {" "}and your email, if you gave one. After that, or to change the time, message {site.barber} on WhatsApp.
+        </p>
+        <a href={cancelUrl} className="mt-3 inline-block break-all text-brass-bright underline underline-offset-4">
+          Cancel this booking
+        </a>
       </div>
 
       <div className="mt-8 flex flex-wrap justify-center gap-3">
         <button
           type="button"
           className="btn btn-primary"
-          onClick={() => downloadIcs({ id, title: service.name, start: slot.startsAt, minutes: service.durationMinutes })}
+          onClick={() => downloadIcs({ id, title: service.name, start: slot.startsAt, minutes: service.durationMinutes, cancelUrl })}
         >
           <CalendarIcon className="size-5" /> Add to calendar
         </button>
