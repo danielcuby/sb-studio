@@ -40,7 +40,7 @@ export default function Hero() {
   );
 
   return (
-    <section ref={root} className="relative flex min-h-[100svh] flex-col justify-end overflow-hidden" aria-labelledby="hero-title">
+    <section ref={root} className="relative isolate flex min-h-[100svh] flex-col justify-end overflow-hidden" aria-labelledby="hero-title">
       <div className="hero-media absolute inset-0 -z-10">
         <Image
           src={images.hero.src}

@@ -1,15 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { site, weekdayNames } from "@/config/site";
 import { localDateKey, weekdayOf } from "@/lib/time";
 
 // Monday first, the way people read a week.
 const order = [1, 2, 3, 4, 5, 6, 0];
+const noop = () => () => {};
 
 export default function HoursList() {
-  const [today, setToday] = useState<number | null>(null);
-  useEffect(() => setToday(weekdayOf(localDateKey())), []);
+  // Today's weekday in Gibraltar, known only in the browser (the page itself is static).
+  const today = useSyncExternalStore(noop, () => weekdayOf(localDateKey()), () => null);
 
   return (
     <dl className="divide-y divide-line border-y border-line">

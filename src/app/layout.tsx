@@ -9,6 +9,8 @@ const display = Big_Shoulders({
   variable: "--font-big-shoulders",
   subsets: ["latin"],
   axes: ["opsz"],
+  fallback: ["Arial Narrow", "Impact", "sans-serif"],
+  adjustFontFallback: false,
   display: "swap",
 });
 

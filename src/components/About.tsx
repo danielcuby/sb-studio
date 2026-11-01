@@ -30,7 +30,7 @@ export default function About() {
   );
 
   return (
-    <section ref={root} id="about" className="border-y border-line bg-coal py-24 md:py-36" aria-labelledby="about-title">
+    <section ref={root} id="about" className="isolate border-y border-line bg-coal py-24 md:py-36" aria-labelledby="about-title">
       <div className="container-x grid items-center gap-12 md:grid-cols-[5fr_6fr] md:gap-20">
         <Reveal>
           <div className="relative">
